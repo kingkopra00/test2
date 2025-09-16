@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أداة توزيع الاحتياجات (V14)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { 
+            --primary-color: #005a9c; --secondary-color: #f0f8ff; 
+            --success-color: #28a745; --error-color: #dc3545; --info-color: #17a2b8;
+        }
+        body { 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            direction: rtl; background-color: #f4f6f9; margin: 20px; 
+        }
+        .container { max-width: 1000px; margin: auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: var(--primary-color); }
+        .step { margin-bottom: 25px; padding: 20px; border: 1px dashed #ccc; border-radius: 8px; background-color: var(--secondary-color); }
+        label, h3 { font-weight: bold; margin-bottom: 8px; display: block; }
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { 
+            font-size: 1em; border: none; border-radius: 5px; cursor: pointer; 
+            color: white; padding: 10px 15px; margin-top: 5px;
+        }
+        .file-loader { border-top: 1px solid #ddd; padding-top: 15px; }
+        .file-loader .button-group { display: flex; gap: 10px; }
+        .file-loader .status { font-size: 0.9em; color: #6c757d; margin-top: 8px; }
+        .btn-repo { background-color: var(--primary-color); }
+        .btn-local { background-color: #5a6268; }
+        .btn-process { background-color: var(--primary-color); width: 100%;}
+        .btn-export { background-color: var(--info-color); }
+        .btn-print { background-color: #6c757d; }
+        .message { padding: 15px; margin-top: 20px; border-radius: 5px; text-align: center; font-weight: bold; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .hidden { display: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+        thead th { background-color: var(--primary-color); color: white; }
+        .button-group { display: flex; gap: 10px; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #results, #results * { visibility: visible; }
+            #results { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; border: none; }
+            .button-group, #searchInput, #searchBtn, label[for="searchInput"] { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>أداة توزيع الاحتياجات (V14)</h1>
+        <div id="loadingStatus" class="message success">جاري تحميل البيانات من ذاكرة المتصفح...</div>
+        <div id="step1" class="step">
+            <h3>الخطوة 1: تحميل الملفات</h3>
+            <div class="file-loader">
+                <label>1. ملف الاحتياج المرسل</label>
+                <div class="button-group">
+                    <button class="btn-repo" onclick="loadFileFromRepo('directorate')">تحميل من المستودع</button>
+                    <button class="btn-local" onclick="document.getElementById('directorateFile').click()">رفع من الجهاز</button>
+                </div>
+                <div id="directorateStatus" class="status">الحالة: لم يتم التحميل</div>
+                <input type="file" id="directorateFile" class="hidden" onchange="loadFileFromLocal(this, 'directorate')">
+            </div>
+            <br>
+            <div class="file-loader">
+                <label>2. ملف الاحتياج المعتمد</label>
+                <div class="button-group">
+                    <button class="btn-repo" onclick="loadFileFromRepo('ministry')">تحميل من المستودع</button>
+                    <button class="btn-local" onclick="document.getElementById('ministryFile').click()">رفع من الجهاز</button>
+                </div>
+                <div id="ministryStatus" class="status">الحالة: لم يتم التحميل</div>
+                <input type="file" id="ministryFile" class="hidden" onchange="loadFileFromLocal(this, 'ministry')">
+            </div>
+        </div>
+        <div id="step2" class="step hidden">
+            </div>
+        <div id="messageArea"></div>
+    </div>
+    
+    <template id="search-template">
+        <h3>الخطوة 2: البحث والتوزيع</h3>
+        <label for="searchInput">ابحث عن المادة</label>
+        <input type="text" id="searchInput" list="itemsDatalist" placeholder="أدخل اسم المادة أو الرمز الوطني...">
+        <datalist id="itemsDatalist"></datalist>
+        <button id="searchBtn" style="background-color: var(--success-color); width:100%; margin-top:10px;">بحث</button>
+        <div id="results" class="hidden" style="margin-top: 20px;">
+            <h2 id="itemName" style="font-size: 1.5em;"></h2>
+            <div style="display: flex; justify-content: space-around; text-align: center; background: #fafafa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div><h4 style="margin:0; color: #555;">إجمالي المطلوب</h4><p id="total-requested" style="font-size: 1.8em; font-weight: bold; margin: 5px 0; color: #d9534f;">0</p></div>
+                <div><h4 style="margin:0; color: #555;">إجمالي المعتمد</h4><p id="total-approved" style="font-size: 1.8em; font-weight: bold; margin: 5px 0; color: #5cb85c;">0</p></div>
+            </div>
+            <h3>جدول توزيع الحصة</h3><table id="distributionTable"></table>
+            <div class="button-group">
+                <button id="exportBtn" class="btn-export">تصدير كملف CSV</button>
+                <button id="printBtn" class="btn-print">طباعة النتائج</button>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        let directorateData = [], ministryData = new Map(), uniqueItems = new Map(), lastSearchResults = [];
+
+        // --- IndexedDB Functions for Caching ---
+        const dbName = 'FileCacheDB';
+        let db;
+
+        function openDb() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, 1);
+                request.onerror = () => reject("Error opening DB");
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    db.createObjectStore('files', { keyPath: 'id' });
+                };
+            });
+        }
+
+        function saveFileToDb(id, blob) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['files'], 'readwrite');
+                const store = transaction.objectStore('files');
+                const request = store.put({ id, blob });
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject("Error saving file");
+            });
+        }
+
+        function loadFileFromDb(id) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['files'], 'readonly');
+                const store = transaction.objectStore('files');
+                const request = store.get(id);
+                request.onsuccess = (event) => {
+                    resolve(event.target.result ? event.target.result.blob : null);
+                };
+                request.onerror = () => reject("Error loading file");
+            });
+        }
+        // --- End IndexedDB Functions ---
+
+
+        const sanitizeString = (str) => String(str || '').replace(/\s+/g, ' ').trim();
+        const formatNumber = (num) => Math.round(Number(num)).toLocaleString('en-US');
+
+        const fileConfigs = {
+            directorate: { name: 'احتياج ٢٠٢٥.xlsx', statusEl: 'directorateStatus', dataVar: 'directorateData', processor: processDirectorateData },
+            ministry: { name: 'المعتمد ٢٠٢٥.xlsx', statusEl: 'ministryStatus', dataVar: 'ministryData', processor: processMinistryData }
+        };
+
+        // Main logic starts here
+        window.onload = async () => {
+            try {
+                await openDb();
+                document.getElementById('loadingStatus').innerText = '✅ جاهز للعمل.';
+                // Try to load both files from cache
+                const dirBlob = await loadFileFromDb('directorate');
+                const minBlob = await loadFileFromDb('ministry');
+                
+                if (dirBlob) await processFile(dirBlob, 'directorate', 'ذاكرة المتصفح');
+                if (minBlob) await processFile(minBlob, 'ministry', 'ذاكرة المتصفح');
+
+            } catch (error) {
+                document.getElementById('loadingStatus').className = 'message error';
+                document.getElementById('loadingStatus').innerText = 'حدث خطأ في تحميل الذاكرة.';
+                console.error(error);
+            }
+        };
+
+        async function loadFileFromRepo(type) {
+            const config = fileConfigs[type];
+            const statusEl = document.getElementById(config.statusEl);
+            statusEl.innerText = `الحالة: جاري التحميل من المستودع...`;
+            try {
+                const response = await fetch(config.name);
+                if (!response.ok) throw new Error(`لم يتم العثور على الملف "${config.name}" في المستودع.`);
+                const blob = await response.blob();
+                await processFile(blob, type, 'المستودع');
+                await saveFileToDb(type, blob);
+            } catch (e) {
+                statusEl.innerText = `الحالة: فشل التحميل. ${e.message}`;
+            }
+        }
+
+        async function loadFileFromLocal(inputElement, type) {
+            if (inputElement.files.length === 0) return;
+            const file = inputElement.files[0];
+            await processFile(file, type, 'الجهاز المحلي');
+            await saveFileToDb(type, file);
+        }
+
+        async function processFile(fileBlob, type, source) {
+            const config = fileConfigs[type];
+            const statusEl = document.getElementById(config.statusEl);
+            try {
+                const workbook = await readExcelBlob(fileBlob);
+                await config.processor(workbook);
+                statusEl.innerHTML = `✅ تم التحميل بنجاح من: <strong>${source}</strong>`;
+                checkIfReady();
+            } catch (e) {
+                statusEl.innerText = `الحالة: فشل التحليل. ${e.message}`;
+                console.error(e);
+            }
+        }
+
+        const readExcelBlob = (blob) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => { try { resolve(XLSX.read(e.target.result, { type: 'array' })); } catch(err) { reject(err); }};
+            reader.onerror = e => reject(new Error("فشل في قراءة الملف"));
+            reader.readAsArrayBuffer(blob);
+        });
+
+        function processDirectorateData(workbook) {
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const sheetAsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+            const mainHeaderRowIndex = sheetAsArray.findIndex(row => row.some(cell => sanitizeString(cell) === 'NATIONAL CODE'));
+            if (mainHeaderRowIndex === -1) throw new Error("لم يتم العثور على 'NATIONAL CODE'");
+            const mainHeaders = sheetAsArray[mainHeaderRowIndex].map(h => sanitizeString(h));
+            const institutionHeaders = (sheetAsArray[mainHeaderRowIndex - 1] || []).map(h => sanitizeString(h));
+            const itemCodeIndex = mainHeaders.indexOf('NATIONAL CODE');
+            const itemNameIndex = mainHeaders.indexOf('ITEMS');
+            const institutionColumns = institutionHeaders.map((h, i) => ({h, i})).filter(c => c.h.startsWith('احتياج') && !c.h.startsWith('احتياج عام') && c.h !== 'احتياج 2025');
+            if (institutionColumns.length === 0) throw new Error("لم يتم العثور على أعمدة احتياج.");
+            
+            const transformedData = [];
+            uniqueItems.clear();
+            const dataRows = sheetAsArray.slice(mainHeaderRowIndex + 1);
+            dataRows.forEach(row => {
+                const itemCode = sanitizeString(row[itemCodeIndex]);
+                const itemName = sanitizeString(row[itemNameIndex]);
+                if (!itemCode || !itemName) return;
+                if (!uniqueItems.has(itemCode)) { uniqueItems.set(itemCode, itemName); }
+                institutionColumns.forEach(col => {
+                    transformedData.push({
+                        institution: col.h, item_code: itemCode,
+                        item_name: itemName, quantity_requested: Number(row[col.i]) || 0
+                    });
+                });
+            });
+            directorateData = transformedData;
+        }
+
+        function processMinistryData(workbook) {
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const sheetAsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+            const mainHeaderRowIndex = sheetAsArray.findIndex(row => row.some(cell => sanitizeString(cell) === 'NATIONAL CODE'));
+            if (mainHeaderRowIndex === -1) throw new Error("لم يتم العثور على 'NATIONAL CODE'");
+            const mainHeaders = sheetAsArray[mainHeaderRowIndex].map(h => sanitizeString(h));
+            const topHeaders = (sheetAsArray[mainHeaderRowIndex - 1] || []).map(h => sanitizeString(h));
+            const itemCodeIndex = mainHeaders.indexOf('NATIONAL CODE');
+            const approvedQtyCol = topHeaders.map((h, i) => ({h, i})).find(c=>c.h.includes('دائرة صحة المثنى'));
+            if (!approvedQtyCol) throw new Error("لم يتم العثور على عمود 'دائرة صحة المثنى'.");
+            
+            ministryData.clear();
+            const dataRows = sheetAsArray.slice(mainHeaderRowIndex + 1);
+            dataRows.forEach(row => {
+                const ic = sanitizeString(row[itemCodeIndex]);
+                if (ic) ministryData.set(ic, Number(row[approvedQtyCol.i]) || 0);
+            });
+        }
+
+        function checkIfReady() {
+            if (directorateData.length > 0 && ministryData.size > 0) {
+                document.getElementById('step2').innerHTML = document.getElementById('search-template').innerHTML;
+                document.getElementById('step2').classList.remove('hidden');
+                document.getElementById('searchBtn').addEventListener('click', performSearch);
+                document.getElementById('searchInput').addEventListener('keyup', (e) => { if (e.key === 'Enter') performSearch(); });
+                document.getElementById('exportBtn').addEventListener('click', exportToCsv);
+                document.getElementById('printBtn').addEventListener('click', () => window.print());
+                
+                const datalist = document.getElementById('itemsDatalist');
+                datalist.innerHTML = '';
+                for (const [code, name] of uniqueItems.entries()) {
+                    const option = document.createElement('option');
+                    option.dataset.code = code;
+                    option.value = name;
+                    datalist.appendChild(option);
+                }
+            }
+        }
+        
+        // performSearch and exportToCsv functions remain the same as the previous final version.
+        function performSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const inputValue = sanitizeString(searchInput.value);
+            const resultsDiv = document.getElementById('results');
+            if (!inputValue) return;
+            let definitiveCode = null;
+            const options = document.getElementById('itemsDatalist').options;
+            for (let i = 0; i < options.length; i++) {
+                if (sanitizeString(options[i].value) === inputValue) {
+                    definitiveCode = sanitizeString(options[i].dataset.code);
+                    break;
+                }
+            }
+            let relevantEntries;
+            if (definitiveCode) {
+                relevantEntries = directorateData.filter(row => row.item_code === definitiveCode);
+            } else {
+                const query = inputValue.toLowerCase();
+                relevantEntries = directorateData.filter(row => row.item_code.toLowerCase().includes(query) || (row.item_name && row.item_name.toLowerCase().includes(query)));
+            }
+            lastSearchResults = relevantEntries;
+            if (relevantEntries.length === 0) {
+                resultsDiv.classList.add('hidden');
+                alert("لم يتم العثور على المادة المطلوبة.");
+                return;
+            }
+            const itemCode = relevantEntries[0].item_code;
+            const itemName = relevantEntries[0].item_name;
+            const totalRequested = relevantEntries.reduce((sum, row) => sum + row.quantity_requested, 0);
+            const totalApproved = ministryData.get(itemCode) || 0;
+            resultsDiv.classList.remove('hidden');
+            document.getElementById('itemName').innerHTML = `نتائج البحث لـ: <strong>${itemName}</strong> (الرمز: ${itemCode})`;
+            document.getElementById('total-requested').innerText = formatNumber(totalRequested);
+            document.getElementById('total-approved').innerText = formatNumber(totalApproved);
+            const table = document.getElementById('distributionTable');
+            table.innerHTML = `<thead><tr><th>المؤسسة الصحية</th><th>الكمية المطلوبة</th><th>النسبة من الإجمالي</th><th>الحصة المعتمدة</th></tr></thead><tbody></tbody>`;
+            const tbody = table.querySelector('tbody');
+            relevantEntries.forEach(entry => {
+                const requested = entry.quantity_requested;
+                const percentage = (totalRequested > 0) ? (requested / totalRequested) * 100 : 0;
+                const share = (totalRequested > 0) ? (requested / totalRequested) * totalApproved : 0;
+                tbody.innerHTML += `<tr>
+                    <td>${entry.institution}</td>
+                    <td>${formatNumber(requested)}</td>
+                    <td>${percentage.toFixed(2)}%</td>
+                    <td><b>${formatNumber(share)}</b></td>
+                </tr>`;
+            });
+        }
+
+        function exportToCsv() {
+            if (lastSearchResults.length === 0) {
+                alert("لا توجد بيانات لتصديرها."); return;
+            }
+            const itemCode = lastSearchResults[0].item_code;
+            const itemName = lastSearchResults[0].item_name;
+            const totalRequested = lastSearchResults.reduce((sum, row) => sum + row.quantity_requested, 0);
+            const totalApproved = ministryData.get(itemCode) || 0;
+            let csvContent = `اسم المادة,"${itemName}"\n`;
+            csvContent += `الرمز الوطني,"${itemCode}"\n`;
+            csvContent += `إجمالي الكمية المطلوبة,${totalRequested}\n`;
+            csvContent += `إجمالي الكمية المعتمدة,${totalApproved}\n\n`;
+            const headers = ["المؤسسة الصحية", "الكمية المطلوبة", "النسبة من الإجمالي", "الحصة المعتمدة"];
+            csvContent += headers.join(',') + '\n';
+            lastSearchResults.forEach(entry => {
+                const requested = entry.quantity_requested;
+                const percentage = (totalRequested > 0) ? (requested / totalRequested) * 100 : 0;
+                const share = (totalRequested > 0) ? (requested / totalRequested) * totalApproved : 0;
+                csvContent += `"${entry.institution}",${requested},"${percentage.toFixed(2)}%",${Math.round(share)}\n`;
+            });
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            const fileName = `${sanitizeString(itemName)}.csv`;
+            link.setAttribute('download', fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
