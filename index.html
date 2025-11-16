@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أداة إنشاء وصولات المخزون (نسخة 9.7)</title>
+    <title>أداة إنشاء وصولات المخزون (نسخة 9.8 - إصلاح الطباعة)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     
     <style>
@@ -844,6 +844,7 @@
                         margin: 0;
                         padding: 0;
                         background: #fff;
+                        font-size: 11pt; /* حجم خط أساسي للطباعة */
                     }
                     .voucher-container {
                         width: 100%;
@@ -908,6 +909,7 @@
                         border: 2px solid #000; /* حدود سميكة للجدول الرئيسي */
                         padding: 10px;
                         text-align: center;
+                        word-wrap: break-word; /* لكسر الأسماء الطويلة */
                     }
                     .items-table th {
                         background-color: #e0e0e0;
@@ -952,9 +954,11 @@
                         min-height: 50px;
                     }
                     
+                    /* *** تعديل: تنسيق الصور في الطباعة (تصغير + عدم تقطيع) *** */
                     .attachments-section img {
-                        max-width: 100%; /* عرض كامل للصفحة */
-                        height: auto;
+                        max-width: 100%; /* استخدام كامل العرض */
+                        max-height: 80vh; /* *** هذا هو السطر المهم *** */
+                        object-fit: contain; /* الحفاظ على النسبة */
                         display: block;
                         border: 1px solid #ccc;
                         margin: 15px auto;
@@ -967,7 +971,8 @@
                         body { margin: 0; }
                         .voucher-container { border: none; }
                         .attachments-section {
-                            page-break-before: always; /* بدء المرفقات في صفحة جديدة */
+                            /* *** تعديل: إلغاء الكسر الإجباري *** */
+                            /* page-break-before: always; */ 
                         }
                     }
                 `;
