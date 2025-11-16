@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أداة إنشاء وصولات المخزون (نسخة 9.6 - إصلاح سفاري)</title>
+    <title>أداة إنشاء وصولات المخزون (نسخة 9.7)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     
     <style>
@@ -833,94 +833,117 @@
             }
         }
         
-        // --- *** تعديل: وظيفة فتح نافذة الطباعة (التصميم الرسمي) *** ---
+        // --- *** تعديل: وظيفة فتح نافذة الطباعة (تنسيق احترافي) *** ---
         function openPrintWindow(printWindow, data, instLabel, items, imagesBase64, dynamicFilename) {
             try {
+                // *** هذا هو الـ CSS الجديد للطباعة الاحترافية ***
                 const printStyles = `
                     body {
                         font-family: 'Tahoma', sans-serif;
                         color: #000;
                         margin: 0;
-                        padding: 10px;
+                        padding: 0;
                         background: #fff;
                     }
                     .voucher-container {
-                        width: 95%;
-                        margin: 20px auto;
-                        padding: 20px;
-                        border: 2px solid #000;
+                        width: 100%;
+                        margin: 0;
+                        padding: 0;
                     }
                     .header-container {
                         text-align: center;
-                        border-bottom: 2px solid #000;
                         padding-bottom: 10px;
+                        border-bottom: 3px double #000; /* خط مزدوج */
                     }
                     h1 {
-                        font-size: 1.5rem;
+                        font-size: 16pt; /* استخدام pt للطباعة */
+                        font-weight: bold;
                         margin: 0;
                     }
                     h2 {
-                        font-size: 1.3rem;
+                        font-size: 14pt;
+                        font-weight: bold;
                         margin: 5px 0;
                     }
                     .doc-info {
                         display: flex;
                         justify-content: space-between;
-                        padding: 10px 0;
-                        font-size: 1rem;
+                        padding: 15px 0 10px 0;
+                        font-size: 12pt;
                         font-weight: bold;
+                    }
+                    .main-title {
+                        text-align:center;
+                        background: #e0e0e0;
+                        padding: 8px;
+                        font-size: 14pt;
+                        font-weight: bold;
+                        margin: 15px 0;
+                        border: 1px solid #000;
                     }
                     .info-table {
                         width: 100%;
                         border-collapse: collapse;
-                        margin: 20px 0;
-                        font-size: 1rem;
+                        margin-bottom: 20px;
+                        font-size: 11pt;
                     }
                     .info-table th, .info-table td {
-                        border: 1px solid #777;
-                        padding: 8px;
+                        border: 1px solid #333;
+                        padding: 10px;
                         text-align: right;
                     }
                     .info-table th {
-                        background-color: #f0f0f0;
-                        width: 120px;
+                        background-color: #f4f4f4;
+                        width: 130px;
+                        font-weight: bold;
                     }
                     
                     .items-table {
                         width: 100%;
                         border-collapse: collapse;
                         margin-top: 20px;
-                        font-size: 1rem;
+                        font-size: 11pt;
                     }
                     .items-table th, .items-table td {
-                        border: 1px solid #000;
-                        padding: 8px;
+                        border: 2px solid #000; /* حدود سميكة للجدول الرئيسي */
+                        padding: 10px;
                         text-align: center;
                     }
                     .items-table th {
                         background-color: #e0e0e0;
+                        font-weight: bold;
                     }
                     .items-table td:nth-child(2) { /* عمود اسم المادة */
                          text-align: right;
                          width: 40%;
                     }
                     .signatures {
-                        margin-top: 50px;
+                        margin-top: 60px;
+                        padding-top: 20px;
                         display: flex;
                         justify-content: space-around;
-                        font-size: 1rem;
+                        font-size: 12pt;
                         font-weight: bold;
+                        page-break-inside: avoid; /* منع كسر التواقيع */
                     }
                     .signatures div {
                         text-align: center;
                     }
                     .signatures span {
                         display: block;
-                        margin-top: 40px;
+                        margin-top: 50px; /* مسافة كبيرة للتوقيع */
                         padding-top: 5px;
+                        border-top: 1px dotted #000;
                     }
                     .notes-section, .attachments-section {
-                        margin-top: 20px;
+                        margin-top: 25px;
+                        page-break-inside: avoid; /* منع كسر هذه الأقسام */
+                    }
+                    .notes-section h3, .attachments-section h3 {
+                        font-size: 13pt;
+                        border-bottom: 1px solid #ccc;
+                        padding-bottom: 5px;
+                        margin-bottom: 10px;
                     }
                     .notes-section p {
                         white-space: pre-wrap;
@@ -929,20 +952,20 @@
                         min-height: 50px;
                     }
                     
-                    /* *** تعديل: تنسيق الصور في الطباعة (عمودي + عدم التقطيع) *** */
                     .attachments-section img {
-                        max-width: 90%;
+                        max-width: 100%; /* عرض كامل للصفحة */
+                        height: auto;
                         display: block;
                         border: 1px solid #ccc;
-                        margin: 10px auto;
-                        page-break-inside: avoid; /* *** هذا هو السطر المهم لعدم تقطيع الصورة *** */
+                        margin: 15px auto;
+                        page-break-inside: avoid; /* *** منع تقطيع الصورة *** */
                     }
                     
                     /* تنسيقات الطباعة */
                     @media print {
                         @page { size: A4; margin: 1cm; }
                         body { margin: 0; }
-                        .voucher-container { border: none; box-shadow: none; width: 100%; }
+                        .voucher-container { border: none; }
                         .attachments-section {
                             page-break-before: always; /* بدء المرفقات في صفحة جديدة */
                         }
@@ -1005,7 +1028,7 @@
                                 <span>رقم الوصل: ${data.voucherNumber}</span>
                             </div>
                             
-                            <h2 style="text-align:center; background: #e0e0e0; padding: 5px;">وصل ${data.operationType}</h2>
+                            <h2 class="main-title">وصل ${data.operationType}</h2>
                             
                             <table class="info-table">
                                 <tr>
@@ -1048,9 +1071,11 @@
                 printWindow.document.write(htmlContent);
                 printWindow.document.close();
                 
+                // *** تعديل: زيادة المهلة إلى ثانية كاملة ***
                 setTimeout(() => {
+                    printWindow.focus(); // جلب النافذة للأمام
                     printWindow.print();
-                }, 500);
+                }, 1000); // 1 ثانية
             
             } catch (error) {
                 // *** إضافة: إظهار الخطأ للمستخدم ***
