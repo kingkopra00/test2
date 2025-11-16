@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أداة إنشاء وصولات المخزون (نسخة 9.5 - إصلاح الأخطاء)</title>
+    <title>أداة إنشاء وصولات المخزون (نسخة 9.6 - إصلاح سفاري)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     
     <style>
@@ -769,23 +769,30 @@
             return `تجهيز-${instName}-${uniqueWarehouses}-${today}`;
         }
         
-        // --- *** وظيفة مُعدلة لإنشاء الوصل (تدعم المواد والصور المتعددة) *** ---
+        // --- *** تعديل: وظيفة إنشاء الوصل (لإصلاح مشكلة سفاري) *** ---
         async function generateVoucher(event) {
-            // *** إضافة: try...catch لمعرفة أي خطأ يحدث ***
+            event.preventDefault(); 
+
+            // 1. التحقق من الصحة (كما هو)
+            if (document.getElementById('institution').value === "") {
+                 alert("الرجاء اختيار اسم المؤسسة (الجهة).");
+                 return;
+            }
+            if (addedItems.length === 0) {
+                alert("الرجاء إضافة مادة واحدة على الأقل للجدول قبل إنشاء الوصل.");
+                return;
+            }
+
+            // *** 2. فتح النافذة المنبثقة أولاً (لإصلاح سفاري) ***
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                alert("فشل فتح نافذة الطباعة. الرجاء السماح بالنوافذ المنبثقة (Popups) لهذا الموقع.");
+                return;
+            }
+            printWindow.document.write('<html><head><title>جاري التحضير...</title></head><body><h1>جاري تحضير الوصل، يرجى الانتظار...</h1></body></html>');
+
+            // 3. بدء معالجة البيانات (داخل try...catch)
             try {
-                event.preventDefault(); 
-
-                // 1. التحقق من صحة الفورم الأساسي
-                if (document.getElementById('institution').value === "") {
-                     alert("الرجاء اختيار اسم المؤسسة (الجهة).");
-                     return;
-                }
-                // 2. التحقق من إضافة مواد
-                if (addedItems.length === 0) {
-                    alert("الرجاء إضافة مادة واحدة على الأقل للجدول قبل إنشاء الوصل.");
-                    return;
-                }
-
                 // 3. جمع البيانات الأساسية
                 const formData = {
                     operationType: document.querySelector('input[name="operationType"]:checked').value,
@@ -797,10 +804,9 @@
                 
                 const instLabel = (formData.operationType === 'إدخال مخزني') ? 'الجهة المجهزة' : 'الجهة المستلمة';
 
-                // 4. معالجة الصور المتعددة (من مصفوفتنا الخاصة)
-                const imageFiles = addedImageFiles; // *** تعديل: استخدام مصفوفتنا ***
+                // 4. معالجة الصور
+                const imageFiles = addedImageFiles;
                 const imagesBase64 = [];
-                
                 const imagePromises = imageFiles.map(file => {
                     return new Promise((resolve, reject) => {
                         const reader = new FileReader();
@@ -810,25 +816,25 @@
                     });
                 });
 
-                
                 const loadedImages = await Promise.all(imagePromises);
                 imagesBase64.push(...loadedImages);
                 
-                // *** إضافة: إنشاء اسم الملف الديناميكي ***
+                // 5. إنشاء اسم الملف
                 const dynamicFilename = generateFilename(formData.institution, addedItems);
                 
-                // 5. الآن، افتح نافذة الطباعة
-                openPrintWindow(formData, instLabel, addedItems, imagesBase64, dynamicFilename);
+                // 6. الآن، اكتب المحتوى في النافذة المفتوحة مسبقاً
+                openPrintWindow(printWindow, formData, instLabel, addedItems, imagesBase64, dynamicFilename);
 
             } catch (error) {
-                // *** إضافة: إظهار الخطأ للمستخدم ***
+                // إظهار الخطأ للمستخدم
                 console.error("خطأ فادح في generateVoucher:", error);
                 alert(`حدث خطأ فادح:\n\n${error.message}\n\nيرجى أخذ لقطة شاشة وإرسالها للمطور.`);
+                printWindow.close(); // إغلاق نافذة "جاري التحضير"
             }
         }
         
-        // --- *** وظيفة مُعدلة لفتح نافذة الطباعة (التصميم الرسمي) *** ---
-        function openPrintWindow(data, instLabel, items, imagesBase64, dynamicFilename) {
+        // --- *** تعديل: وظيفة فتح نافذة الطباعة (التصميم الرسمي) *** ---
+        function openPrintWindow(printWindow, data, instLabel, items, imagesBase64, dynamicFilename) {
             try {
                 const printStyles = `
                     body {
@@ -923,12 +929,13 @@
                         min-height: 50px;
                     }
                     
-                    /* *** تعديل: تنسيق الصور في الطباعة (عمودي) *** */
+                    /* *** تعديل: تنسيق الصور في الطباعة (عمودي + عدم التقطيع) *** */
                     .attachments-section img {
-                        max-width: 90%; /* عرض أكبر */
-                        display: block; /* جعلها بلوك */
+                        max-width: 90%;
+                        display: block;
                         border: 1px solid #ccc;
-                        margin: 10px auto; /* مسافة وتوسيط */
+                        margin: 10px auto;
+                        page-break-inside: avoid; /* *** هذا هو السطر المهم لعدم تقطيع الصورة *** */
                     }
                     
                     /* تنسيقات الطباعة */
@@ -1036,7 +1043,7 @@
                     </html>
                 `;
                 
-                const printWindow = window.open('', '_blank');
+                // *** تعديل: الكتابة في النافذة المفتوحة مسبقاً ***
                 printWindow.document.open();
                 printWindow.document.write(htmlContent);
                 printWindow.document.close();
